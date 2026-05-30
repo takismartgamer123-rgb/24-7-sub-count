@@ -17,7 +17,7 @@ jobs:
       - name: Start GOD STREAM
         env:
           YOUTUBE_KEY: ${{ secrets.YOUTUBE_KEY }}
-          CHANNEL_ID: UC4xLiPv0BtPUMR2CwzNWI5g # <<< بدل ID تاعك
+          CHANNEL_ID: UCCji3rVchUafZT6qxETGIxQ # <<< بدل ID تاعك
           CHANNEL_NAME: "its taki!! 🇩🇿²⁴" # <<< بدل اسمك
         run: |
           sudo apt-get update -y
