@@ -2,14 +2,14 @@ name: Taki Stream 24/7 Pro
 on:
   workflow_dispatch:
   schedule:
-    - cron: '0 */5 * * *'
+    - cron: '*/30 * * * *' # كل 30 دقيقة يعاود يشعل باه نضمنو 24/7
 jobs:
   stream:
     runs-on: ubuntu-latest
-    timeout-minutes: 295
+    timeout-minutes: 350 # 5 ساعات و 50 دقيقة
     steps:
       - name: Install deps
-        run: sudo apt-get update && sudo apt-get install -y ffmpeg jq bc
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg jq bc curl
 
       - name: Start Taki Stream Pro
         env:
@@ -19,8 +19,11 @@ jobs:
           YOUTUBE_VIDEO_ID: ${{ secrets.YOUTUBE_VIDEO_ID }}
         run: |
           #!/bin/bash
+          set +e # ما تحبسش كي يصرا error
+
           GOALS=(5000 10000 25000 50000 100000)
           CELEBRATE=0
+          LAST_GOAL=0
 
           QUIZ_LIST=(
             "ما هو الشيء الذي كلما زاد نقص؟:العمر"
@@ -46,15 +49,37 @@ jobs:
           )
 
           QUIZ_INDEX=0
-          LIVE_CHAT_ID=$(curl -s "https://www.googleapis.com/youtube/v3/videos?part=liveStreamingDetails&id=$YOUTUBE_VIDEO_ID&key=$YOUTUBE_API_KEY" | jq -r '.items[0].liveStreamingDetails.activeLiveChatId')
+          LIVE_CHAT_ID=$(curl -s "https://www.googleapis.com/youtube/v3/videos?part=liveStreamingDetails&id=$YOUTUBE_VIDEO_ID&key=$YOUTUBE_API_KEY" | jq -r '.items[0].liveStreamingDetails.activeLiveChatId // empty')
+
+          # نحملو الايموجي مرة وحدة - بدل رابط اللوغو برابطك
+          curl -s -o /tmp/logo.png "https://i.imgur.com/YourLogo.png" || true
+          curl -s -o /tmp/live.png "https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/72x72/1f534.png" || true
+          curl -s -o /tmp/chart.png "https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/72x72/1f4ca.png" || true
+          curl -s -o /tmp/crown.png "https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/72x72/1f451.png" || true
+          curl -s -o /tmp/chat.png "https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/72x72/1f4ac.png" || true
+          curl -s -o /tmp/brain.png "https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/72x72/1f9e0.png" || true
+          curl -s -o /tmp/target.png "https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/72x72/1f3af.png" || true
+          curl -s -o /tmp/eyes.png "https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/72x72/1f441.png" || true
+          curl -s -o /tmp/fire.png "https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/72x72/1f525.png" || true
 
           while true; do
-            RESPONSE=$(curl -s "https://www.googleapis.com/youtube/v3/channels?part=statistics,snippet&id=$YOUTUBE_CHANNEL_ID&key=$YOUTUBE_API_KEY")
-            if [[ $RESPONSE == *"error"* ]]; then sleep 60; continue; fi
+            # فحص النت قبل كل شي
+            if! ping -c 1 google.com &> /dev/null; then
+              echo "النت طاح، نستنى 30 ثانية..."
+              sleep 30
+              continue
+            fi
 
-            SUBS=$(echo $RESPONSE | jq -r '.items[0].statistics.subscriberCount')
-            VIEWS=$(echo $RESPONSE | jq -r '.items[0].statistics.viewCount')
-            CHANNEL_NAME=$(echo $RESPONSE | jq -r '.items[0].snippet.title')
+            RESPONSE=$(curl -s "https://www.googleapis.com/youtube/v3/channels?part=statistics,snippet&id=$YOUTUBE_CHANNEL_ID&key=$YOUTUBE_API_KEY")
+            if [[ $RESPONSE == *"error"* ]] || [[ -z "$RESPONSE" ]]; then
+              echo "API Error, نستنى دقيقة..."
+              sleep 60
+              continue
+            fi
+
+            SUBS=$(echo $RESPONSE | jq -r '.items[0].statistics.subscriberCount // "0"')
+            VIEWS=$(echo $RESPONSE | jq -r '.items[0].statistics.viewCount // "0"')
+            CHANNEL_NAME=$(echo $RESPONSE | jq -r '.items[0].snippet.title // "Taki"')
 
             if [ -f /tmp/subs_yesterday ]; then YESTERDAY_SUBS=$(cat /tmp/subs_yesterday); else YESTERDAY_SUBS=$SUBS; fi
             TODAY_SUBS=$((SUBS - YESTERDAY_SUBS))
@@ -66,23 +91,27 @@ jobs:
             for g in "${GOALS[@]}"; do if [ $SUBS -lt $g ]; then CURRENT_GOAL=$g; break; fi; done
             if [ $SUBS -ge $CURRENT_GOAL ] && [ $CELEBRATE -eq 0 ]; then CELEBRATE=300; LAST_GOAL=$CURRENT_GOAL; fi
 
-            PERCENT=$(echo "scale=1; $SUBS*100/$CURRENT_GOAL" | bc)
-            BAR_WIDTH=$(echo "$PERCENT*6" | bc)
-            if (( $(echo "$BAR_WIDTH > 600" | bc -l) )); then BAR_WIDTH=600; fi
+            PERCENT=$(echo "scale=1; $SUBS*100/$CURRENT_GOAL" | bc 2>/dev/null || echo "0")
+            BAR_WIDTH=$(echo "$PERCENT*6" | bc 2>/dev/null || echo "0")
+            if (( $(echo "$BAR_WIDTH > 600" | bc -l 2>/dev/null || echo 0) )); then BAR_WIDTH=600; fi
             REMAINING=$((CURRENT_GOAL - SUBS))
 
-            CHAT_JSON=$(curl -s "https://www.googleapis.com/youtube/v3/liveChat/messages?liveChatId=$LIVE_CHAT_ID&part=snippet,authorDetails&maxResults=3&key=$YOUTUBE_API_KEY")
-            CHAT1=$(echo $CHAT_JSON | jq -r '.items[0].snippet.displayMessage // "مرحبا بيكم" |.[0:30]')
-            CHAT1_USER=$(echo $CHAT_JSON | jq -r '.items[0].authorDetails.displayName // "Taki" |.[0:15]')
-            CHAT2=$(echo $CHAT_JSON | jq -r '.items[1].snippet.displayMessage // "..." |.[0:30]')
-            CHAT2_USER=$(echo $CHAT_JSON | jq -r '.items[1].authorDetails.displayName // "..." |.[0:15]')
-            CHAT3=$(echo $CHAT_JSON | jq -r '.items[2].snippet.displayMessage // "..." |.[0:30]')
-            CHAT3_USER=$(echo $CHAT_JSON | jq -r '.items[2].authorDetails.displayName // "..." |.[0:15]')
-
-            TOP_USERS=$(echo $CHAT_JSON | jq -r '.items[].authorDetails.displayName' | sort | uniq -c | sort -nr | head -3)
-            TOP1=$(echo "$TOP_USERS" | sed -n '1p' | awk '{print $2}' | cut -c1-12)
-            TOP2=$(echo "$TOP_USERS" | sed -n '2p' | awk '{print $2}' | cut -c1-12)
-            TOP3=$(echo "$TOP_USERS" | sed -n '3p' | awk '{print $2}' | cut -c1-12)
+            if [ -n "$LIVE_CHAT_ID" ]; then
+              CHAT_JSON=$(curl -s "https://www.googleapis.com/youtube/v3/liveChat/messages?liveChatId=$LIVE_CHAT_ID&part=snippet,authorDetails&maxResults=3&key=$YOUTUBE_API_KEY")
+              CHAT1=$(echo $CHAT_JSON | jq -r '.items[0].snippet.displayMessage // "مرحبا بيكم" |.[0:30]')
+              CHAT1_USER=$(echo $CHAT_JSON | jq -r '.items[0].authorDetails.displayName // "Taki" |.[0:15]')
+              CHAT2=$(echo $CHAT_JSON | jq -r '.items[1].snippet.displayMessage // "..." |.[0:30]')
+              CHAT2_USER=$(echo $CHAT_JSON | jq -r '.items[1].authorDetails.displayName // "..." |.[0:15]')
+              CHAT3=$(echo $CHAT_JSON | jq -r '.items[2].snippet.displayMessage // "..." |.[0:30]')
+              CHAT3_USER=$(echo $CHAT_JSON | jq -r '.items[2].authorDetails.displayName // "..." |.[0:15]')
+              TOP_USERS=$(echo $CHAT_JSON | jq -r '.items[].authorDetails.displayName' | sort | uniq -c | sort -nr | head -3)
+              TOP1=$(echo "$TOP_USERS" | sed -n '1p' | awk '{print $2}' | cut -c1-12)
+              TOP2=$(echo "$TOP_USERS" | sed -n '2p' | awk '{print $2}' | cut -c1-12)
+              TOP3=$(echo "$TOP_USERS" | sed -n '3p' | awk '{print $2}' | cut -c1-12)
+            else
+              CHAT1="البث المباشر"; CHAT1_USER="Taki"; CHAT2="..."; CHAT2_USER="..."; CHAT3="..."; CHAT3_USER="..."
+              TOP1="Taki"; TOP2="..."; TOP3="..."
+            fi
 
             if (( $SECONDS % 1800 < 5 )); then QUIZ_INDEX=$(( (QUIZ_INDEX + 1) % ${#QUIZ_LIST[@]} )); fi
             CURRENT_QUIZ=$(echo ${QUIZ_LIST[$QUIZ_INDEX]} | cut -d: -f1)
@@ -91,45 +120,76 @@ jobs:
             if [ $VIEWS -ge 1000 ]; then VIEWS_SHORT=$(echo "scale=1; $VIEWS/1000" | bc)K; else VIEWS_SHORT=$VIEWS; fi
 
             if [ $CELEBRATE -gt 0 ]; then
-              ffmpeg -f lavfi -i color=c=0x0a0a0a:s=1920x1080 -vf \
-              "drawtext=text='🎉 مبروووك 🎉':fontcolor=0xffd700:fontsize=120:x=(w-text_w)/2:y=400, \
-               drawtext=text='وصلنا $LAST_GOAL مشترك':fontcolor=0x00ff88:fontsize=80:x=(w-text_w)/2:y=600" \
-              -frames:v 1 -y frame.jpg
+              ffmpeg -f lavfi -i color=c=0x1a0033:s=1920x1080 \
+              -i /tmp/logo.png -i /tmp/fire.png -filter_complex \
+              "[1:v]scale=300:300;[2:v]scale=120:120[fire1];[2:v]scale=120:120[fire2]; \
+               [0:v]overlay=x=(W-w)/2:y=150[bg1]; \
+               [bg1][fire1]overlay=x=500:y=500[bg2]; \
+               [bg2][fire2]overlay=x=1300:y=500, \
+               drawtext=text='BOOM!':fontcolor=0xff0080:fontsize=140:x=(w-text_w)/2:y=500:box=1:boxcolor=0xffd700@0.3:boxborderw=20, \
+               drawtext=text='وصلنا $LAST_GOAL مشترك':fontcolor=white:fontsize=90:x=(w-text_w)/2:y=700:shadowcolor=0xff0080:shadowx=5:shadowy=5" \
+              -frames:v 1 -y frame.jpg 2>/dev/null || true
               CELEBRATE=$((CELEBRATE - 5))
             else
-              ffmpeg -f lavfi -i color=c=0x0a0a0a:s=1920x1080 -vf \
-              "drawbox=x=0:y=0:w=1920:h=120:color=0x1a1a1a@0.8:t=fill, \
-               drawtext=text='بث تاكي 24/7':fontcolor=white:fontsize=45:x=100:y=40, \
-               drawtext=text='أبطال اليوم: +$TODAY_SUBS':fontcolor=0x00ff88:fontsize=35:x=w-tw-100:y=45, \
-               drawbox=x=90:y=200:w=700:h=600:color=0x151515@0.7:t=fill, \
-               drawtext=text='$CHANNEL_NAME':fontcolor=0x9b9bff:fontsize=50:x=120:y=220, \
-               drawtext=text='المشتركين':fontcolor=white:fontsize=35:x=120:y=320, \
-               drawtext=text='$SUBS_SHORT':fontcolor=0x00e5ff:fontsize=90:x=120:y=360, \
-               drawtext=text='الهدف\: $CURRENT_GOAL | باقي $REMAINING':fontcolor=white:fontsize=30:x=120:y=480, \
-               drawbox=x=120:y=530:w=600:h=35:color=0x333333@1:t=fill, \
-               drawbox=x=120:y=530:w=$BAR_WIDTH:h=35:color=0x00ff88@1:t=fill, \
-               drawtext=text='$PERCENT%':fontcolor=white:fontsize=28:x=380:y=533, \
-               drawtext=text='المشاهدات\: $VIEWS_SHORT':fontcolor=0xff9500:fontsize=30:x=120:y=600, \
-               drawbox=x=1130:y=200:w=700:h=300:color=0x151515@0.7:t=fill, \
-               drawtext=text='🏆 توب المتفاعلين':fontcolor=0xffd700:fontsize=35:x=1150:y=220, \
-               drawtext=text='1. $TOP1':fontcolor=0xffd700:fontsize=30:x=1150:y=280, \
-               drawtext=text='2. $TOP2':fontcolor=0xc0c0c0:fontsize=30:x=1150:y=330, \
-               drawtext=text='3. $TOP3':fontcolor=0xcd7f32:fontsize=30:x=1150:y=380, \
-               drawbox=x=1130:y=550:w=700:h=450:color=0x151515@0.7:t=fill, \
-               drawtext=text='💬 لايف شات':fontcolor=0x00aaff:fontsize=35:x=1150:y=570, \
-               drawtext=text='$CHAT1_USER\: $CHAT1':fontcolor=white:fontsize=26:x=1150:y=630, \
-               drawtext=text='$CHAT2_USER\: $CHAT2':fontcolor=0xcccccc:fontsize=26:x=1150:y=680, \
-               drawtext=text='$CHAT3_USER\: $CHAT3':fontcolor=0x999999:fontsize=26:x=1150:y=730, \
-               drawbox=x=90:y=850:w=1740:h=150:color=0x2d1b00@0.9:t=fill, \
-               drawtext=text='🧠 لغز الساعة':fontcolor=0xffcc00:fontsize=35:x=120:y=870, \
-               drawtext=text='$CURRENT_QUIZ':fontcolor=white:fontsize=32:x=120:y=930, \
-               drawtext=text='جاوب في الشات باه تربح - لغز جديد كل 30 دقيقة':fontcolor=0x888888:fontsize=24:x=120:y=970" \
-              -frames:v 1 -y frame.jpg
+              ffmpeg -f lavfi -i color=c=0x0d001a:s=1920x1080 \
+              -i /tmp/logo.png -i /tmp/live.png -i /tmp/chart.png -i /tmp/crown.png -i /tmp/chat.png -i /tmp/brain.png -i /tmp/target.png -i /tmp/eyes.png -filter_complex \
+              "[1:v]scale=100:100[logo]; \
+               [2:v]scale=45:45[live]; \
+               [3:v]scale=40:40[chart]; \
+               [4:v]scale=40:40[crown]; \
+               [5:v]scale=40:40[chat]; \
+               [6:v]scale=35:35[brain]; \
+               [7:v]scale=30:30[target]; \
+               [8:v]scale=30:30[eyes]; \
+               [0:v][logo]overlay=x=1720:y=20[bg1]; \
+               [bg1][live]overlay=x=45:y=45[bg2]; \
+               [bg2][chart]overlay=x=90:y=215[bg3]; \
+               [bg3][crown]overlay=x=1050:y=215[bg4]; \
+               [bg4][chat]overlay=x=1050:y=615[bg5]; \
+               [bg5][brain]overlay=x=90:y=920[bg6]; \
+               [bg6][target]overlay=x=110:y=600[bg7]; \
+               [bg7][eyes]overlay=x=110:y=730, \
+               drawbox=x=0:y=0:w=1920:h=140:color=0x4a00e0@0.9:t=fill, \
+               drawtext=text='LIVE | بث تاكي الرسمي 24/7':fontcolor=white:fontsize=50:x=100:y=45:shadowcolor=black:shadowx=3:shadowy=3, \
+               drawtext=text='اليوم +$TODAY_SUBS':fontcolor=0x00ff88:fontsize=40:x=1400:y=50:box=1:boxcolor=0x00ff88@0.2:boxborderw=10, \
+               drawbox=x=80:y=200:w=800:h=650:color=0x1a1a2e@0.85:t=fill, \
+               drawbox=x=80:y=200:w=800:h=80:color=0x4a00e0@1:t=fill, \
+               drawtext=text='احصائيات القناة':fontcolor=white:fontsize=45:x=140:y=215, \
+               drawtext=text='$CHANNEL_NAME':fontcolor=0x9d4edd:fontsize=55:x=120:y=310:shadowcolor=black:shadowx=2:shadowy=2, \
+               drawtext=text='المشتركين':fontcolor=0xaaaaaa:fontsize=35:x=120:y=420, \
+               drawtext=text='$SUBS_SHORT':fontcolor=0x00f5ff:fontsize=110:x=120:y=460:shadowcolor=0x00f5ff:shadowx=0:shadowy=0, \
+               drawtext=text='الهدف القادم: $CURRENT_GOAL':fontcolor=white:fontsize=32:x=150:y=600, \
+               drawbox=x=120:y=650:w=720:h=45:color=0x2d2d44@1:t=fill, \
+               drawbox=x=120:y=650:w=$BAR_WIDTH:h=45:color=0x00ff88@1:t=fill, \
+               drawtext=text='$PERCENT% | باقي $REMAINING':fontcolor=black:fontsize=30:x=350:y=657, \
+               drawtext=text='$VIEWS_SHORT مشاهدة':fontcolor=0xff6b35:fontsize=35:x=150:y=730, \
+               drawbox=x=1040:y=200:w=800:h=350:color=0x1a1a2e@0.85:t=fill, \
+               drawbox=x=1040:y=200:w=800:h=80:color=0xff0080@1:t=fill, \
+               drawtext=text='ملوك التفاعل':fontcolor=white:fontsize=45:x=1100:y=215, \
+               drawtext=text='1. $TOP1':fontcolor=0xffd700:fontsize=38:x=1080:y=310:shadowcolor=0xffd700:shadowx=0:shadowy=0, \
+               drawtext=text='2. $TOP2':fontcolor=0xe0e0e0:fontsize=35:x=1080:y=380, \
+               drawtext=text='3. $TOP3':fontcolor=0xcd7f32:fontsize=35:x=1080:y=450, \
+               drawbox=x=1040:y=600:w=800:h=450:color=0x1a1a2e@0.85:t=fill, \
+               drawbox=x=1040:y=600:w=800:h=80:color=0x00a8e8@1:t=fill, \
+               drawtext=text='الشات الحي':fontcolor=white:fontsize=45:x=1100:y=615, \
+               drawtext=text='➤ $CHAT1_USER:':fontcolor=0x00f5ff:fontsize=28:x=1080:y=700, \
+               drawtext=text='$CHAT1':fontcolor=white:fontsize=28:x=1100:y=740, \
+               drawtext=text='➤ $CHAT2_USER:':fontcolor=0x00f5ff:fontsize=28:x=1080:y=800, \
+               drawtext=text='$CHAT2':fontcolor=0xdddddd:fontsize=28:x=1100:y=840, \
+               drawtext=text='➤ $CHAT3_USER:':fontcolor=0x00f5ff:fontsize=28:x=1080:y=900, \
+               drawtext=text='$CHAT3':fontcolor=0xbbbbbb:fontsize=28:x=1100:y=940, \
+               drawbox=x=80:y=900:w=1760:h=140:color=0x4a00e0@0.95:t=fill, \
+               drawtext=text='تحدى عقلك':fontcolor=0xffd700:fontsize=40:x=140:y=920:shadowcolor=black:shadowx=2:shadowy=2, \
+               drawtext=text='$CURRENT_QUIZ':fontcolor=white:fontsize=36:x=100:y=980, \
+               drawtext=text='لغز جديد كل 30 دقيقة | جاوب في الشات و ولي نجم البث':fontcolor=0x00ff88:fontsize=26:x=100:y=1030" \
+              -frames:v 1 -y frame.jpg 2>/dev/null || true
             fi
 
-            timeout 295 ffmpeg -re -loop 1 -i frame.jpg -f lavfi -i anullsrc=r=44100:cl=mono \
+            # هذا هو السطر اللي يحل مشكلة الـ 5 دقايق
+            ffmpeg -re -stream_loop -1 -loop 1 -i frame.jpg -f lavfi -i anullsrc=r=44100:cl=mono \
             -c:v libx264 -preset ultrafast -tune stillimage -pix_fmt yuv420p -r 1 -g 2 \
             -c:a aac -b:a 32k -shortest \
-            -f flv "rtmp://a.rtmp.youtube.com/live2/$YOUTUBE_STREAM_KEY" || true
+            -f flv "rtmp://a.rtmp.youtube.com/live2/$YOUTUBE_STREAM_KEY" 2>/dev/null || true
+
             sleep 5
-          done          
+          done
