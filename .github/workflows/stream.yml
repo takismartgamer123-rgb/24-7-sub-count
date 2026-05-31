@@ -1,4 +1,4 @@
-name: GOD STREAM 24/7 WITH LIVE SUBS
+name: Taki Stream 24/7 Pro
 
 on:
   workflow_dispatch:
@@ -6,50 +6,142 @@ on:
     - cron: '0 */5 * * *'
 
 jobs:
-  live:
+  stream:
     runs-on: ubuntu-latest
-    timeout-minutes: 355
+    timeout-minutes: 295
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Install deps
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg jq bc
 
-      - name: Start GOD STREAM
+      - name: Start Taki Stream Pro
         env:
-          STREAM_KEY: ${{ secrets.YOUTUBE_KEY }}
-          API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
-          CHANNEL_ID: ${{ secrets.YOUTUBE_CHANNEL_ID }}
+          YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
+          YOUTUBE_CHANNEL_ID: ${{ secrets.YOUTUBE_CHANNEL_ID }}
+          YOUTUBE_STREAM_KEY: ${{ secrets.YOUTUBE_STREAM_KEY }}
+          YOUTUBE_VIDEO_ID: ${{ secrets.YOUTUBE_VIDEO_ID }} # زيد هذا في Secrets: ID تاع البث اللايف
         run: |
-          sudo apt-get update -y
-          sudo apt-get install -y ffmpeg jq fonts-dejavu-core
+          #!/bin/bash
+          GOALS=(5000 10000 25000 50000 100000)
+          CELEBRATE=0
+          QUIZ_LIST=(
+  "ما هو الشيء الذي كلما زاد نقص؟:العمر"
+  "له أوراق وما هو بنبات، له جلد وما هو بحيوان:الكتاب" 
+  "دولة عربية ذكرت في القرآن:مصر"
+  "شيء إذا أكلته كله تستفيد وإذا أكلت نصفه تموت؟:سمسم"
+  "ولاية جزائرية فيها حرف العين 3 مرات؟:عين تموشنت"
+  "من هو محارب الصحراء؟:رياض محرز"
+  "ما هو الشيء الذي يمشي بلا رجلين ويبكي بلا عينين؟:السحاب"
+  "أكلت فلفل فتفلفل فمي، كم فاء في ذلك؟:لا توجد فاء في كلمة ذلك"
+  "ما هو الحيوان الذي لا يشرب الماء أبدا؟:الجرذ الكنغري"
+  "شيء موجود في السماء إذا أضفت له حرف صار في الأرض؟:نجم→منجم"
+  "ما هي السورة التي لا تبدأ بالبسملة؟:التوبة"
+  "من هو مكتشف أمريكا؟:كريستوفر كولومبوس"
+  "عاصمة الجزائر؟:الجزائر"
+  "كم عدد لاعبين فريق كرة القدم؟:11"
+  "ما هو أسرع حيوان بري؟:الفهد"
+  "شيء تذبحه وتبكي عليه؟:البصل"
+  "ما هو الشيء الذي له أسنان ولا يعض؟:المشط"
+  "في أي قارة تقع مصر؟:أفريقيا"
+  "ما هو جمع كلمة حليب؟:لا جمع لها"
+  "من هو مؤسس الدولة الجزائرية الحديثة؟:الأمير عبد القادر"
+)
+          QUIZ_INDEX=0
+
+          # نجيبو LiveChat ID مرة وحدة
+          LIVE_CHAT_ID=$(curl -s "https://www.googleapis.com/youtube/v3/videos?part=liveStreamingDetails&id=$YOUTUBE_VIDEO_ID&key=$YOUTUBE_API_KEY" | jq -r '.items[0].liveStreamingDetails.activeLiveChatId')
 
           while true; do
-            # نجيبو عدد المشتركين من يوتيوب API الرسمي
-            SUBS=$(curl -s "https://www.googleapis.com/youtube/v3/channels?part=statistics&id=$CHANNEL_ID&key=$API_KEY" | jq -r '.items[0].statistics.subscriberCount // "0"')
+            # 1. نجيبو الداتا الاساسية
+            RESPONSE=$(curl -s "https://www.googleapis.com/youtube/v3/channels?part=statistics,snippet&id=$YOUTUBE_CHANNEL_ID&key=$YOUTUBE_API_KEY")
+            if [[ $RESPONSE == *"error"* ]]; then sleep 60; continue; fi
 
-            # اذا فشل API نحطو 0 باه ما يحبسش البث
-            if [ "$SUBS" == "null" ] || [ -z "$SUBS" ]; then
-              SUBS="0"
+            SUBS=$(echo $RESPONSE | jq -r '.items[0].statistics.subscriberCount')
+            VIEWS=$(echo $RESPONSE | jq -r '.items[0].statistics.viewCount')
+            CHANNEL_NAME=$(echo $RESPONSE | jq -r '.items[0].snippet.title')
+
+            # 2. ابطال اليوم
+            if [ -f /tmp/subs_yesterday ]; then YESTERDAY_SUBS=$(cat /tmp/subs_yesterday); else YESTERDAY_SUBS=$SUBS; fi
+            TODAY_SUBS=$((SUBS - YESTERDAY_SUBS))
+            if [ $TODAY_SUBS -lt 0 ]; then TODAY_SUBS=0; fi
+            HOUR=$(date +%H)
+            if [ "$HOUR" == "23" ]; then echo $SUBS > /tmp/subs_yesterday; fi
+
+            # 3. الهدف و البار
+            CURRENT_GOAL=${GOALS[0]}
+            for g in "${GOALS[@]}"; do if [ $SUBS -lt $g ]; then CURRENT_GOAL=$g; break; fi; done
+            if [ $SUBS -ge $CURRENT_GOAL ] && [ $CELEBRATE -eq 0 ]; then CELEBRATE=300; LAST_GOAL=$CURRENT_GOAL; fi
+
+            PERCENT=$(echo "scale=1; $SUBS*100/$CURRENT_GOAL" | bc)
+            BAR_WIDTH=$(echo "$PERCENT*6" | bc)
+            if (( $(echo "$BAR_WIDTH > 600" | bc -l) )); then BAR_WIDTH=600; fi
+            REMAINING=$((CURRENT_GOAL - SUBS))
+
+            # 4. نجيبو آخر 3 رسائل من الشات
+            CHAT_JSON=$(curl -s "https://www.googleapis.com/youtube/v3/liveChat/messages?liveChatId=$LIVE_CHAT_ID&part=snippet,authorDetails&maxResults=3&key=$YOUTUBE_API_KEY")
+            CHAT1=$(echo $CHAT_JSON | jq -r '.items[0].snippet.displayMessage // "مرحبا بيكم" |.[0:30]')
+            CHAT1_USER=$(echo $CHAT_JSON | jq -r '.items[0].authorDetails.displayName // "Taki" |.[0:15]')
+            CHAT2=$(echo $CHAT_JSON | jq -r '.items[1].snippet.displayMessage // "..." |.[0:30]')
+            CHAT2_USER=$(echo $CHAT_JSON | jq -r '.items[1].authorDetails.displayName // "..." |.[0:15]')
+            CHAT3=$(echo $CHAT_JSON | jq -r '.items[2].snippet.displayMessage // "..." |.[0:30]')
+            CHAT3_USER=$(echo $CHAT_JSON | jq -r '.items[2].authorDetails.displayName // "..." |.[0:15]')
+
+            # 5. توب 3 متفاعلين - نحسبو شكون علق اكثر
+            TOP_USERS=$(echo $CHAT_JSON | jq -r '.items[].authorDetails.displayName' | sort | uniq -c | sort -nr | head -3)
+            TOP1=$(echo "$TOP_USERS" | sed -n '1p' | awk '{print $2}' | cut -c1-12)
+            TOP2=$(echo "$TOP_USERS" | sed -n '2p' | awk '{print $2}' | cut -c1-12)
+            TOP3=$(echo "$TOP_USERS" | sed -n '3p' | awk '{print $2}' | cut -c1-12)
+
+            # 6. لغز كل 30 دقيقة = 360 تحديث تاع 5 ثواني
+            if (( $SECONDS % 1800 < 5 )); then QUIZ_INDEX=$(( (QUIZ_INDEX + 1) % 3 )); fi
+            CURRENT_QUIZ=$(echo ${QUIZ_LIST[$QUIZ_INDEX]} | cut -d: -f1)
+
+            # 7. تنسيق الارقام
+            if [ $SUBS -ge 1000 ]; then SUBS_SHORT=$(echo "scale=1; $SUBS/1000" | bc)K; else SUBS_SHORT=$SUBS; fi
+            if [ $VIEWS -ge 1000 ]; then VIEWS_SHORT=$(echo "scale=1; $VIEWS/1000" | bc)K; else VIEWS_SHORT=$VIEWS; fi
+
+            # 8. رسم الفريم كامل منظم
+            if [ $CELEBRATE -gt 0 ]; then
+              ffmpeg -f lavfi -i color=c=0x0a0a0a:s=1920x1080 -vf \
+              "drawtext=text='🎉 مبروووك 🎉':fontcolor=0xffd700:fontsize=120:x=(w-text_w)/2:y=400, \
+               drawtext=text='وصلنا $LAST_GOAL مشترك':fontcolor=0x00ff88:fontsize=80:x=(w-text_w)/2:y=600" \
+              -frames:v 1 -y frame.jpg
+              CELEBRATE=$((CELEBRATE - 5))
+            else
+              ffmpeg -f lavfi -i color=c=0x0a0a0a:s=1920x1080 -vf \
+              "drawbox=x=0:y=0:w=1920:h=120:color=0x1a1a1a@0.8:t=fill, \
+               drawtext=text='بث تاكي 24/7':fontcolor=white:fontsize=45:x=100:y=40, \
+               drawtext=text='أبطال اليوم: +$TODAY_SUBS':fontcolor=0x00ff88:fontsize=35:x=w-tw-100:y=45, \
+               drawbox=x=90:y=200:w=700:h=600:color=0x151515@0.7:t=fill, \
+               drawtext=text='$CHANNEL_NAME':fontcolor=0x9b9bff:fontsize=50:x=120:y=220, \
+               drawtext=text='المشتركين':fontcolor=white:fontsize=35:x=120:y=320, \
+               drawtext=text='$SUBS_SHORT':fontcolor=0x00e5ff:fontsize=90:x=120:y=360, \
+               drawtext=text='الهدف\: $CURRENT_GOAL | باقي $REMAINING':fontcolor=white:fontsize=30:x=120:y=480, \
+               drawbox=x=120:y=530:w=600:h=35:color=0x333333@1:t=fill, \
+               drawbox=x=120:y=530:w=$BAR_WIDTH:h=35:color=0x00ff88@1:t=fill, \
+               drawtext=text='$PERCENT%':fontcolor=white:fontsize=28:x=380:y=533, \
+               drawtext=text='المشاهدات\: $VIEWS_SHORT':fontcolor=0xff9500:fontsize=30:x=120:y=600, \
+               drawbox=x=1130:y=200:w=700:h=300:color=0x151515@0.7:t=fill, \
+               drawtext=text='🏆 توب المتفاعلين':fontcolor=0xffd700:fontsize=35:x=1150:y=220, \
+               drawtext=text='1. $TOP1':fontcolor=0xffd700:fontsize=30:x=1150:y=280, \
+               drawtext=text='2. $TOP2':fontcolor=0xc0c0c0:fontsize=30:x=1150:y=330, \
+               drawtext=text='3. $TOP3':fontcolor=0xcd7f32:fontsize=30:x=1150:y=380, \
+               drawbox=x=1130:y=550:w=700:h=450:color=0x151515@0.7:t=fill, \
+               drawtext=text='💬 لايف شات':fontcolor=0x00aaff:fontsize=35:x=1150:y=570, \
+               drawtext=text='$CHAT1_USER\: $CHAT1':fontcolor=white:fontsize=26:x=1150:y=630, \
+               drawtext=text='$CHAT2_USER\: $CHAT2':fontcolor=0xcccccc:fontsize=26:x=1150:y=680, \
+               drawtext=text='$CHAT3_USER\: $CHAT3':fontcolor=0x999999:fontsize=26:x=1150:y=730, \
+               drawbox=x=90:y=850:w=1740:h=150:color=0x2d1b00@0.9:t=fill, \
+               drawtext=text='🧠 لغز الساعة':fontcolor=0xffcc00:fontsize=35:x=120:y=870, \
+               drawtext=text='$CURRENT_QUIZ':fontcolor=white:fontsize=32:x=120:y=930, \
+               drawtext=text='جاوب في الشات باه تربح! | لغز جديد كل 30 دقيقة':fontcolor=0x888888:fontsize=24:x=120:y=970
+              -frames:v 1 -y frame.jpg
             fi
 
-            UPTIME=$(date -u -d @$(($(date +%s) - $(date -d "$(git log -1 --format=%cI)" +%s))) +'%H:%M:%S')
-            echo "LIVE: $SUBS subscribers | Uptime: $UPTIME"
-
-            # نخدمو صورة جديدة كل 5 دقايق بالعدد المحدث
-            ffmpeg -f lavfi -i color=c=0x000000:s=1920x1080 -vf \
-            "drawtext=fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf:text='GOD STREAM - its taki!! 🇩🇿²⁴':fontcolor=white:fontsize=36:x=120:y=80, \
-             drawbox=x=100:y=140:w=280:h=70:color=0xff2d55@1:t=fill, \
-             drawtext=fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf:text='LIVE 24/7':fontcolor=white:fontsize=32:x=140:y=158, \
-             drawtext=fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf:text='$CHANNEL_NAME':fontcolor=0x9b9bff:fontsize=42:x=(w-text_w)/2:y=h/2-100, \
-             drawtext=fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf:text='مشترك':fontcolor=white:fontsize=28:x=(w-text_w)/2:y=h/2+160, \
-             drawtext=fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf:text='$SUBS':fontcolor=0x00e5ff:fontsize=80:x=(w-text_w)/2:y=h/2+200, \
-             drawtext=fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf:text='UPTIME\: $UPTIME':fontcolor=0x555555:fontsize=18:x=w-200:y=h-40" \
-            -frames:v 1 -y frame.jpg
-
-            # نشعلو البث لمدة 5 دقايق بالصورة الجديدة
             timeout 295 ffmpeg -re -loop 1 -i frame.jpg -f lavfi -i anullsrc=r=44100:cl=mono \
-            -c:v libx264 -tune stillimage -preset ultrafast -pix_fmt yuv420p -r 1 -g 2 \
+            -c:v libx264 -preset ultrafast -tune stillimage -pix_fmt yuv420p -r 1 -g 2 \
             -c:a aac -b:a 32k -shortest \
-            -f flv "rtmp://a.rtmp.youtube.com/live2/$STREAM_KEY" || true
+            -f flv "rtmp://a.rtmp.youtube.com/live2/$YOUTUBE_STREAM_KEY" || true
 
             sleep 5
-          done
+          
