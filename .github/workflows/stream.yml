@@ -1,15 +1,12 @@
 name: Taki Stream 24/7 Pro
-
 on:
   workflow_dispatch:
   schedule:
-    - cron: '0 */6 * * *'
-
+    - cron: '0 */5 * * *'
 jobs:
   stream:
     runs-on: ubuntu-latest
-    timeout-minutes: 355
-
+    timeout-minutes: 295
     steps:
       - name: Install deps
         run: sudo apt-get update && sudo apt-get install -y ffmpeg jq bc
@@ -19,39 +16,39 @@ jobs:
           YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
           YOUTUBE_CHANNEL_ID: ${{ secrets.YOUTUBE_CHANNEL_ID }}
           YOUTUBE_STREAM_KEY: ${{ secrets.YOUTUBE_STREAM_KEY }}
-          YOUTUBE_VIDEO_ID: ${{ secrets.YOUTUBE_VIDEO_ID }} # زيد هذا في Secrets: ID تاع البث اللايف
+          YOUTUBE_VIDEO_ID: ${{ secrets.YOUTUBE_VIDEO_ID }}
         run: |
           #!/bin/bash
           GOALS=(5000 10000 25000 50000 100000)
           CELEBRATE=0
-          QUIZ_LIST=(
-  "له أوراق وما هو بنبات، له جلد وما هو بحيوان:الكتاب" 
-  "دولة عربية ذكرت في القرآن:مصر"
-  "شيء إذا أكلته كله تستفيد وإذا أكلت نصفه تموت؟:سمسم"
-  "ولاية جزائرية فيها حرف العين 3 مرات؟:عين تموشنت"
-  "من هو محارب الصحراء؟:رياض محرز"
-  "ما هو الشيء الذي يمشي بلا رجلين ويبكي بلا عينين؟:السحاب"
-  "أكلت فلفل فتفلفل فمي، كم فاء في ذلك؟:لا توجد فاء في كلمة ذلك"
-  "ما هو الحيوان الذي لا يشرب الماء أبدا؟:الجرذ الكنغري"
-  "شيء موجود في السماء إذا أضفت له حرف صار في الأرض؟:نجم→منجم"
-  "ما هي السورة التي لا تبدأ بالبسملة؟:التوبة"
-  "من هو مكتشف أمريكا؟:كريستوفر كولومبوس"
-  "عاصمة الجزائر؟:الجزائر"
-  "كم عدد لاعبين فريق كرة القدم؟:11"
-  "ما هو أسرع حيوان بري؟:الفهد"
-  "شيء تذبحه وتبكي عليه؟:البصل"
-  "ما هو الشيء الذي له أسنان ولا يعض؟:المشط"
-  "في أي قارة تقع مصر؟:أفريقيا"
-  "ما هو جمع كلمة حليب؟:لا جمع لها"
-  "من هو مؤسس الدولة الجزائرية الحديثة؟:الأمير عبد القادر"
-)
-          QUIZ_INDEX=0
 
-          # نجيبو LiveChat ID مرة وحدة
+          QUIZ_LIST=(
+            "ما هو الشيء الذي كلما زاد نقص؟:العمر"
+            "له أوراق وما هو بنبات له جلد وما هو بحيوان:الكتاب"
+            "دولة عربية ذكرت في القرآن:مصر"
+            "شيء إذا أكلته كله تستفيد وإذا أكلت نصفه تموت؟:سمسم"
+            "ولاية جزائرية فيها حرف العين 3 مرات؟:عين تموشنت"
+            "من هو محارب الصحراء؟:رياض محرز"
+            "ما هو الشيء الذي يمشي بلا رجلين ويبكي بلا عينين؟:السحاب"
+            "أكلت فلفل فتفلفل فمي كم فاء في ذلك؟:لا توجد فاء في كلمة ذلك"
+            "ما هو الحيوان الذي لا يشرب الماء أبدا؟:الجرذ الكنغري"
+            "شيء موجود في السماء إذا أضفت له حرف صار في الأرض؟:نجم منجم"
+            "ما هي السورة التي لا تبدأ بالبسملة؟:التوبة"
+            "من هو مكتشف أمريكا؟:كريستوفر كولومبوس"
+            "عاصمة الجزائر؟:الجزائر"
+            "كم عدد لاعبين فريق كرة القدم؟:11"
+            "ما هو أسرع حيوان بري؟:الفهد"
+            "شيء تذبحه وتبكي عليه؟:البصل"
+            "ما هو الشيء الذي له أسنان ولا يعض؟:المشط"
+            "في أي قارة تقع مصر؟:أفريقيا"
+            "ما هو جمع كلمة حليب؟:لا جمع لها"
+            "من هو مؤسس الدولة الجزائرية الحديثة؟:الأمير عبد القادر"
+          )
+
+          QUIZ_INDEX=0
           LIVE_CHAT_ID=$(curl -s "https://www.googleapis.com/youtube/v3/videos?part=liveStreamingDetails&id=$YOUTUBE_VIDEO_ID&key=$YOUTUBE_API_KEY" | jq -r '.items[0].liveStreamingDetails.activeLiveChatId')
 
           while true; do
-            # 1. نجيبو الداتا الاساسية
             RESPONSE=$(curl -s "https://www.googleapis.com/youtube/v3/channels?part=statistics,snippet&id=$YOUTUBE_CHANNEL_ID&key=$YOUTUBE_API_KEY")
             if [[ $RESPONSE == *"error"* ]]; then sleep 60; continue; fi
 
@@ -59,14 +56,12 @@ jobs:
             VIEWS=$(echo $RESPONSE | jq -r '.items[0].statistics.viewCount')
             CHANNEL_NAME=$(echo $RESPONSE | jq -r '.items[0].snippet.title')
 
-            # 2. ابطال اليوم
             if [ -f /tmp/subs_yesterday ]; then YESTERDAY_SUBS=$(cat /tmp/subs_yesterday); else YESTERDAY_SUBS=$SUBS; fi
             TODAY_SUBS=$((SUBS - YESTERDAY_SUBS))
             if [ $TODAY_SUBS -lt 0 ]; then TODAY_SUBS=0; fi
             HOUR=$(date +%H)
             if [ "$HOUR" == "23" ]; then echo $SUBS > /tmp/subs_yesterday; fi
 
-            # 3. الهدف و البار
             CURRENT_GOAL=${GOALS[0]}
             for g in "${GOALS[@]}"; do if [ $SUBS -lt $g ]; then CURRENT_GOAL=$g; break; fi; done
             if [ $SUBS -ge $CURRENT_GOAL ] && [ $CELEBRATE -eq 0 ]; then CELEBRATE=300; LAST_GOAL=$CURRENT_GOAL; fi
@@ -76,7 +71,6 @@ jobs:
             if (( $(echo "$BAR_WIDTH > 600" | bc -l) )); then BAR_WIDTH=600; fi
             REMAINING=$((CURRENT_GOAL - SUBS))
 
-            # 4. نجيبو آخر 3 رسائل من الشات
             CHAT_JSON=$(curl -s "https://www.googleapis.com/youtube/v3/liveChat/messages?liveChatId=$LIVE_CHAT_ID&part=snippet,authorDetails&maxResults=3&key=$YOUTUBE_API_KEY")
             CHAT1=$(echo $CHAT_JSON | jq -r '.items[0].snippet.displayMessage // "مرحبا بيكم" |.[0:30]')
             CHAT1_USER=$(echo $CHAT_JSON | jq -r '.items[0].authorDetails.displayName // "Taki" |.[0:15]')
@@ -85,21 +79,17 @@ jobs:
             CHAT3=$(echo $CHAT_JSON | jq -r '.items[2].snippet.displayMessage // "..." |.[0:30]')
             CHAT3_USER=$(echo $CHAT_JSON | jq -r '.items[2].authorDetails.displayName // "..." |.[0:15]')
 
-            # 5. توب 3 متفاعلين - نحسبو شكون علق اكثر
             TOP_USERS=$(echo $CHAT_JSON | jq -r '.items[].authorDetails.displayName' | sort | uniq -c | sort -nr | head -3)
             TOP1=$(echo "$TOP_USERS" | sed -n '1p' | awk '{print $2}' | cut -c1-12)
             TOP2=$(echo "$TOP_USERS" | sed -n '2p' | awk '{print $2}' | cut -c1-12)
             TOP3=$(echo "$TOP_USERS" | sed -n '3p' | awk '{print $2}' | cut -c1-12)
 
-            # 6. لغز كل 30 دقيقة = 360 تحديث تاع 5 ثواني
-            if (( $SECONDS % 1800 < 5 )); then QUIZ_INDEX=$(( (QUIZ_INDEX + 1) % 3 )); fi
+            if (( $SECONDS % 1800 < 5 )); then QUIZ_INDEX=$(( (QUIZ_INDEX + 1) % ${#QUIZ_LIST[@]} )); fi
             CURRENT_QUIZ=$(echo ${QUIZ_LIST[$QUIZ_INDEX]} | cut -d: -f1)
 
-            # 7. تنسيق الارقام
             if [ $SUBS -ge 1000 ]; then SUBS_SHORT=$(echo "scale=1; $SUBS/1000" | bc)K; else SUBS_SHORT=$SUBS; fi
             if [ $VIEWS -ge 1000 ]; then VIEWS_SHORT=$(echo "scale=1; $VIEWS/1000" | bc)K; else VIEWS_SHORT=$VIEWS; fi
 
-            # 8. رسم الفريم كامل منظم
             if [ $CELEBRATE -gt 0 ]; then
               ffmpeg -f lavfi -i color=c=0x0a0a0a:s=1920x1080 -vf \
               "drawtext=text='🎉 مبروووك 🎉':fontcolor=0xffd700:fontsize=120:x=(w-text_w)/2:y=400, \
@@ -133,7 +123,7 @@ jobs:
                drawbox=x=90:y=850:w=1740:h=150:color=0x2d1b00@0.9:t=fill, \
                drawtext=text='🧠 لغز الساعة':fontcolor=0xffcc00:fontsize=35:x=120:y=870, \
                drawtext=text='$CURRENT_QUIZ':fontcolor=white:fontsize=32:x=120:y=930, \
-               drawtext=text='جاوب في الشات باه تربح! | لغز جديد كل 30 دقيقة':fontcolor=0x888888:fontsize=24:x=120:y=970
+               drawtext=text='جاوب في الشات باه تربح - لغز جديد كل 30 دقيقة':fontcolor=0x888888:fontsize=24:x=120:y=970" \
               -frames:v 1 -y frame.jpg
             fi
 
@@ -141,7 +131,5 @@ jobs:
             -c:v libx264 -preset ultrafast -tune stillimage -pix_fmt yuv420p -r 1 -g 2 \
             -c:a aac -b:a 32k -shortest \
             -f flv "rtmp://a.rtmp.youtube.com/live2/$YOUTUBE_STREAM_KEY" || true
-
             sleep 5
-          
-          
+          done          
