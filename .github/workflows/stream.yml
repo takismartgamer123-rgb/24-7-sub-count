@@ -17,14 +17,14 @@ jobs:
           mkdir -p ~/.fonts
           curl -L "https://github.com/googlefonts/noto-emoji/raw/main/fonts/NotoColorEmoji.ttf" -o ~/.fonts/NotoColorEmoji.ttf
           fc-cache -f -v
-          # تحميل اللوغو مع فحص
-          if ! curl -L "${{ secrets.LOGO_URL }}" -o logo.png; then
+          # صححت المسافة هنا
+          if! curl -L "${{ secrets.LOGO_URL }}" -o logo.png; then
             echo "Logo download failed, using blank image"
             convert -size 100x100 xc:transparent logo.png
           fi
           convert logo.png -resize 100x100 logo.png || true
 
-      - name: TAKI Stream 24/7 
+      - name: TAKI Stream 24/7  
         env:
           YOUTUBE_STREAM_KEY: ${{ secrets.YOUTUBE_STREAM_KEY }}
           YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
@@ -137,7 +137,7 @@ jobs:
           "دراسة: الجزائري يقدر يرقد في اي بلاصة الا في سروالو"
           )
 
-          # 2. الجمل التحفيزية 🔥 100 جملة
+          # 2. الجمل التحفيزية 🔥
           MOTIVATION=(
           "ما تستناش الوقت المناسب، دير لايك ضرك"
           "الـ 1K الاولى صعيبة، من بعد تولي ساهلة معاكم"
@@ -245,7 +245,7 @@ jobs:
           "اضرب ابوني و خلي الباقي على ربي"
           )
 
-          # 3. قيم افتراضية باه ما يتكراش
+          # 3. قيم افتراضية
           CURRENT_NEWS="مرحبا بيكم في بث تاكي"
           CURRENT_MOTIV="اضغط لايك اذا راك معانا"
 
@@ -261,12 +261,10 @@ jobs:
 
           # 5. اللوب الرئيسي
           while true; do
-            # تحديث كل 3 دقايق
             if (( SECONDS % 180 < 5 )); then
               CURRENT_NEWS=${NEWS[$RANDOM % ${#NEWS[@]}]}
               CURRENT_MOTIV=${MOTIVATION[$RANDOM % ${#MOTIVATION[@]}]}
 
-              # تحديث الاحصائيات كل ساعة
               if (( SECONDS % 3600 < 5 )); then
                 STATS_JSON=$(curl -s "https://www.googleapis.com/youtube/v3/channels?part=statistics&id=$YOUTUBE_CHANNEL_ID&key=$YOUTUBE_API_KEY")
                 SUBS=$(echo "$STATS_JSON" | jq -r '.items[0].statistics.subscriberCount // "0"')
@@ -278,14 +276,13 @@ jobs:
               fi
             fi
 
-            # فحص النت - صححت المسافة هنا
+            # هنا كانت الغلطة - صححتها
             if! ping -c 1 8.8.8.8 >/dev/null 2>&1; then
               echo "No internet, waiting..."
               sleep 10
               continue
             fi
 
-            # شاشة BOOM اذا وصلت للهدف
             if [ "$SUBS" -ge "$GOAL" ]; then
               ffmpeg -re -f lavfi -i "color=c=0x0a0a0a:s=1920x1080:r=1" \
               -i logo.png \
@@ -296,7 +293,6 @@ jobs:
               kill $!
             fi
 
-            # البث العادي
             ffmpeg -re -f lavfi -i "color=c=0x0a0a0a:s=1920x1080:r=1" \
             -i logo.png \
             -filter_complex "
