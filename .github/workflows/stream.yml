@@ -18,7 +18,7 @@ jobs:
           curl -L "https://github.com/googlefonts/noto-emoji/raw/main/fonts/NotoColorEmoji.ttf" -o ~/.fonts/NotoColorEmoji.ttf
           fc-cache -f -v
           # تحميل اللوغو مع فحص
-          if! curl -L "${{ secrets.LOGO_URL }}" -o logo.png; then
+          if ! curl -L "${{ secrets.LOGO_URL }}" -o logo.png; then
             echo "Logo download failed, using blank image"
             convert -size 100x100 xc:transparent logo.png
           fi
