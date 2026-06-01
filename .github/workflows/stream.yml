@@ -24,13 +24,13 @@ jobs:
           fi
           convert logo.png -resize 100x100 logo.png || true
 
-      - name: Stream 24/7 بلا كوتا
+      - name: TAKI Stream 24/7 
         env:
           YOUTUBE_STREAM_KEY: ${{ secrets.YOUTUBE_STREAM_KEY }}
           YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
           YOUTUBE_CHANNEL_ID: ${{ secrets.YOUTUBE_CHANNEL_ID }}
         run: |
-          # 1. الاخبار المضحكة DZ 😂 100 خبر
+          # 1. الاخبار المضحكة DZ 😂
           NEWS=(
           "عاجل: مواطن لقى 50 دج في سروال قديم، راه يخمم يشري بيها قناة يوتيوب"
           "دراسة: 99% من الجزائريين يضغطو على تخطي الاعلان قبل ما يبدا"
@@ -258,6 +258,7 @@ jobs:
           [ $LEFT -lt 0 ] && LEFT=0
           PERCENT=$((SUBS * 100 / GOAL))
           [ $PERCENT -gt 100 ] && PERCENT=100
+          BAR_WIDTH=$((800 * PERCENT / 100))
 
           # 5. اللوب الرئيسي
           while true; do
@@ -273,10 +274,11 @@ jobs:
                 [ $LEFT -lt 0 ] && LEFT=0
                 PERCENT=$((SUBS * 100 / GOAL))
                 [ $PERCENT -gt 100 ] && PERCENT=100
+                BAR_WIDTH=$((800 * PERCENT / 100))
               fi
             fi
 
-            # هنا كانت الغلطة - صححتها
+            # صححت المسافة هنا ثاني
             if! ping -c 1 8.8.8.8 >/dev/null 2>&1; then
               echo "No internet, waiting..."
               sleep 10
@@ -309,7 +311,7 @@ jobs:
             drawtext=text='$SUBS':fontcolor=0xff0080:fontsize=90:x=100:y=480,
             drawtext=text='🎯 الهدف: $GOAL':fontcolor=white:fontsize=35:x=100:y=620,
             drawbox=x=100:y=680:w=800:h=40:color=0x333333@1:t=fill,
-            drawbox=x=100:y=680:w=800*($PERCENT)/100:h=40:color=0x00ff88@1:t=fill,
+            drawbox=x=100:y=680:w=$BAR_WIDTH:h=40:color=0x00ff88@1:t=fill,
             drawtext=text='$PERCENT%':fontcolor=white:fontsize=30:x=480:y=685,
             drawtext=text='باقي $LEFT للهدف':fontcolor=0xffd700:fontsize=35:x=100:y=750,
             drawtext=text='👁️ $VIEWS مشاهدة':fontcolor=0x00f5ff:fontsize=35:x=100:y=820,
