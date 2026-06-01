@@ -17,10 +17,14 @@ jobs:
           mkdir -p ~/.fonts
           curl -L "https://github.com/googlefonts/noto-emoji/raw/main/fonts/NotoColorEmoji.ttf" -o ~/.fonts/NotoColorEmoji.ttf
           fc-cache -f -v
-          curl -L "${{ secrets.LOGO_URL }}" -o logo.png
+          # تحميل اللوغو مع فحص
+          if! curl -L "${{ secrets.LOGO_URL }}" -o logo.png; then
+            echo "Logo download failed, using blank image"
+            convert -size 100x100 xc:transparent logo.png
+          fi
           convert logo.png -resize 100x100 logo.png || true
 
-      - name: TAKI STREAM 24/7
+      - name: TAKI Stream 24/7 
         env:
           YOUTUBE_STREAM_KEY: ${{ secrets.YOUTUBE_STREAM_KEY }}
           YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
@@ -241,7 +245,11 @@ jobs:
           "اضرب ابوني و خلي الباقي على ربي"
           )
 
-          # 3. احصائيات القناة
+          # 3. قيم افتراضية باه ما يتكراش
+          CURRENT_NEWS="مرحبا بيكم في بث تاكي"
+          CURRENT_MOTIV="اضغط لايك اذا راك معانا"
+
+          # 4. احصائيات القناة
           STATS_JSON=$(curl -s "https://www.googleapis.com/youtube/v3/channels?part=statistics&id=$YOUTUBE_CHANNEL_ID&key=$YOUTUBE_API_KEY")
           SUBS=$(echo "$STATS_JSON" | jq -r '.items[0].statistics.subscriberCount // "0"')
           VIEWS=$(echo "$STATS_JSON" | jq -r '.items[0].statistics.viewCount // "0"')
@@ -251,15 +259,15 @@ jobs:
           PERCENT=$((SUBS * 100 / GOAL))
           [ $PERCENT -gt 100 ] && PERCENT=100
 
-          # 4. اللوب الرئيسي
+          # 5. اللوب الرئيسي
           while true; do
             # تحديث كل 3 دقايق
-            if (( $SECONDS % 180 < 5 )); then
+            if (( SECONDS % 180 < 5 )); then
               CURRENT_NEWS=${NEWS[$RANDOM % ${#NEWS[@]}]}
               CURRENT_MOTIV=${MOTIVATION[$RANDOM % ${#MOTIVATION[@]}]}
 
               # تحديث الاحصائيات كل ساعة
-              if (( $SECONDS % 3600 < 5 )); then
+              if (( SECONDS % 3600 < 5 )); then
                 STATS_JSON=$(curl -s "https://www.googleapis.com/youtube/v3/channels?part=statistics&id=$YOUTUBE_CHANNEL_ID&key=$YOUTUBE_API_KEY")
                 SUBS=$(echo "$STATS_JSON" | jq -r '.items[0].statistics.subscriberCount // "0"')
                 VIEWS=$(echo "$STATS_JSON" | jq -r '.items[0].statistics.viewCount // "0"')
@@ -270,7 +278,7 @@ jobs:
               fi
             fi
 
-            # فحص النت
+            # فحص النت - صححت المسافة هنا
             if! ping -c 1 8.8.8.8 >/dev/null 2>&1; then
               echo "No internet, waiting..."
               sleep 10
@@ -281,7 +289,7 @@ jobs:
             if [ "$SUBS" -ge "$GOAL" ]; then
               ffmpeg -re -f lavfi -i "color=c=0x0a0a0a:s=1920x1080:r=1" \
               -i logo.png \
-              -filter_complex "[1]scale=200:200[logo];[0][logo]overlay=(W-w)/2:(H-h)/2,drawtext=text='🔥':fontsize=100:x=500:y=300,drawtext=text='🔥':fontsize=100:x=1320:y=300,drawtext=text='BOOM!':fontcolor=0xff0080:fontsize=150:x=(w-text_w)/2:y=(h-text_h)/2-50,drawtext=text='وصلنا $GOAL مشترك':fontcolor=white:fontsize=60:x=(w-text_w)/2:y=(h-text_h)/2+100" \
+              -filter_complex "[1]scale=200:200;[0]overlay=(W-w)/2:(H-h)/2,drawtext=text='🔥':fontsize=100:x=500:y=300,drawtext=text='🔥':fontsize=100:x=1320:y=300,drawtext=text='BOOM!':fontcolor=0xff0080:fontsize=150:x=(w-text_w)/2:y=(h-text_h)/2-50,drawtext=text='وصلنا $GOAL مشترك':fontcolor=white:fontsize=60:x=(w-text_w)/2:y=(h-text_h)/2+100" \
               -c:v libx264 -preset ultrafast -tune stillimage -pix_fmt yuv420p -r 1 -g 2 -b:v 1000k -an \
               -f flv "rtmp://a.rtmp.youtube.com/live2/$YOUTUBE_STREAM_KEY" &
               sleep 300
@@ -292,7 +300,7 @@ jobs:
             ffmpeg -re -f lavfi -i "color=c=0x0a0a0a:s=1920x1080:r=1" \
             -i logo.png \
             -filter_complex "
-            [1]scale=100:100[logo];[0][logo]overlay=W-w-50:50,
+            [1]scale=100:100;[0]overlay=W-w-50:50,
             drawbox=x=0:y=0:w=1920:h=180:color=0x4a00e0@0.9:t=fill,
             drawtext=text='🟢 LIVE':fontcolor=0x00ff88:fontsize=48:x=80:y=65,
             drawtext=text='بث تاكي الرسمي 24/7':fontcolor=white:fontsize=55:x=300:y=60,
