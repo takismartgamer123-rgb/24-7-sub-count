@@ -17,20 +17,17 @@ jobs:
           mkdir -p ~/.fonts
           curl -L "https://github.com/googlefonts/noto-emoji/raw/main/fonts/NotoColorEmoji.ttf" -o ~/.fonts/NotoColorEmoji.ttf
           fc-cache -f -v
-          # تحميل اللوغو مع fallback صحيح
           if! curl -L "${{ secrets.LOGO_URL }}" -o logo.png; then
             echo "Logo download failed, using blank image"
             convert -size 100x100 xc:transparent logo.png
           fi
           convert logo.png -resize 100x100 logo.png || true
-
       - name: TAKI Stream 24/7 
         env:
           YOUTUBE_STREAM_KEY: ${{ secrets.YOUTUBE_STREAM_KEY }}
           YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
           YOUTUBE_CHANNEL_ID: ${{ secrets.YOUTUBE_CHANNEL_ID }}
         run: |
-          # 1. الاخبار المضحكة DZ 😂
           NEWS=(
           "عاجل: مواطن لقى 50 دج في سروال قديم، راه يخمم يشري بيها قناة يوتيوب"
           "دراسة: 99% من الجزائريين يضغطو على تخطي الاعلان قبل ما يبدا"
@@ -136,8 +133,6 @@ jobs:
           "عاجل: واحد شرى باكي شيبس، لقاه 90% هواء و 10% شيبس"
           "دراسة: الجزائري يقدر يرقد في اي بلاصة الا في سروالو"
           )
-
-          # 2. الجمل التحفيزية 🔥
           MOTIVATION=(
           "ما تستناش الوقت المناسب، دير لايك ضرك"
           "الـ 1K الاولى صعيبة، من بعد تولي ساهلة معاكم"
@@ -244,12 +239,8 @@ jobs:
           "رانا نبنيو في امبراطورية، و انت الملك"
           "اضرب ابوني و خلي الباقي على ربي"
           )
-
-          # 3. قيم افتراضية
           CURRENT_NEWS="مرحبا بيكم في بث تاكي"
           CURRENT_MOTIV="اضغط لايك اذا راك معانا"
-
-          # 4. احصائيات القناة
           STATS_JSON=$(curl -s "https://www.googleapis.com/youtube/v3/channels?part=statistics&id=$YOUTUBE_CHANNEL_ID&key=$YOUTUBE_API_KEY")
           SUBS=$(echo "$STATS_JSON" | jq -r '.items[0].statistics.subscriberCount // "0"')
           VIEWS=$(echo "$STATS_JSON" | jq -r '.items[0].statistics.viewCount // "0"')
@@ -259,13 +250,10 @@ jobs:
           PERCENT=$((SUBS * 100 / GOAL))
           [ $PERCENT -gt 100 ] && PERCENT=100
           BAR_WIDTH=$((800 * PERCENT / 100))
-
-          # 5. اللوب الرئيسي
           while true; do
             if (( SECONDS % 180 < 5 )); then
               CURRENT_NEWS=${NEWS[$RANDOM % ${#NEWS[@]}]}
               CURRENT_MOTIV=${MOTIVATION[$RANDOM % ${#MOTIVATION[@]}]}
-
               if (( SECONDS % 3600 < 5 )); then
                 STATS_JSON=$(curl -s "https://www.googleapis.com/youtube/v3/channels?part=statistics&id=$YOUTUBE_CHANNEL_ID&key=$YOUTUBE_API_KEY")
                 SUBS=$(echo "$STATS_JSON" | jq -r '.items[0].statistics.subscriberCount // "0"')
@@ -277,14 +265,11 @@ jobs:
                 BAR_WIDTH=$((800 * PERCENT / 100))
               fi
             fi
-
-            # فحص النت
             if! ping -c 1 8.8.8.8 >/dev/null 2>&1; then
               echo "No internet, waiting..."
               sleep 10
               continue
             fi
-
             if [ "$SUBS" -ge "$GOAL" ]; then
               ffmpeg -re -f lavfi -i "color=c=0x0a0a0a:s=1920x1080:r=1" \
               -i logo.png \
@@ -294,7 +279,6 @@ jobs:
               sleep 300
               kill $!
             fi
-
             ffmpeg -re -f lavfi -i "color=c=0x0a0a0a:s=1920x1080:r=1" \
             -i logo.png \
             -filter_complex "
@@ -330,6 +314,5 @@ jobs:
             -c:v libx264 -preset ultrafast -tune stillimage -pix_fmt yuv420p -r 1 -g 2 -b:v 1000k \
             -c:a aac -b:a 32k -ar 44100 \
             -f flv "rtmp://a.rtmp.youtube.com/live2/$YOUTUBE_STREAM_KEY" || true
-
             sleep 30
           done
