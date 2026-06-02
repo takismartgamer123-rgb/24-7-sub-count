@@ -1,0 +1,334 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# streamctl.sh
+# Usage: streamctl.sh <stream_duration_seconds>
+# This script updates overlay text files and launches ffmpeg using drawtext textfile=...:reload=1
+# Designed to be run from the workflow where YOUTUBE_* env vars are provided.
+
+STREAM_DURATION=${1:-21600} # default 6 hours
+TMP_DIR=${TMP_DIR:-/tmp/stream-overlay}
+mkdir -p "$TMP_DIR"
+
+# Ensure START_TS is set for duration calculations
+START_TS=$SECONDS
+
+FONTFILE="${HOME}/.fonts/NotoNaskhArabic-Regular.ttf"
+LOGO=logo.png
+GOAL=5000
+
+# --- Content arrays (kept from original workflow) ---
+NEWS=(
+"عاجل: مواطن لقى 50 دج في سروال قديم، راه يخمم يشري بيها قناة يوتيوب"
+"دراسة: 99% من الجزائريين يضغطو على تخطي الاعلان قبل ما يبدا"
+"خبر مفرح: الباتري تاعك تكمل يوم كامل اذا ما حلتش فيسبوك"
+"تنبيه: كي يقولك صاحبك نعيطلك بعد 5 دقايق = ما راحش يعيط"
+"عاجل: واحد عطس في الدار، سمعوه الجيران في الحومة اللي بعدها"
+"دراسة: المشترك اللي ما يفعلش الجرس هو نفسو اللي يقول ما لحقنيش"
+"خبر: جماعة الكونيكسيون الضعيفة راهم يحملو البث تاعنا 2019"
+"عاجل: كوكب الارض يطلب من سونلغاز تخفف عليه شوية"
+"دراسة: كلمة راني جاي عند الجزائري = مزال ما خرجش من الدار"
+"خبر: واحد شرى تيليفون جديد باه يصور بيه التيليفون القديم"
+"تنبيه: اذا شفت جارك يجري الصباح، ماشي رياضة، راه يلحق في الطرام"
+"عاجل: القهوة تاع الصباح رجعت اغلى من البترول"
+"دراسة: 80% من وقت الاجتماعات يضيع in جملة وين كنا حابسين"
+"خبر: واحد دار وضع الطيران في تيليفونو، التيليفون طار صح"
+"عاجل: الشارجور اللي تسلفو ما يرجعش، يعتبر شهيد"
+"دراسة: الجزائري يقدر يعيش بلا اوكسيجين بصح ما يقدرش بلا انترنت"
+"خبر: طفل صغير قال لباباه نشريلك فيراري كي نكبر، باباه راه يستنى 2040"
+"عاجل: كي تطيحلك الملعقة = عندك ضياف، كي يطيح التيليفون = عندك مصيبة"
+"دراسة: 70% من ليكور نتاع الجامعة راحو في تصاور السلايدات"
+"خبر: واحد راح يشري خبز، رجع بعد 3 سوايع علاش؟ تلاقى واحد يعرفو"
+"عاجل: WiFi الجيران هو الانترنت الوطني الحقيقي"
+"دراسة: كلمة نرقد ساعة ونوض = 4 سوايع نوم عميق"
+"خبر: اكثر كلمة تخوف الجزائري: جاك السياربي"
+"عاجل: الكلافيي تاعك يعرف كلمة السر اكثر منك"
+"دراسة: المشي للصالون يعتبر رياضة عند بعض الناس"
+"خبر: واحد دخل لـ Google باه يكتب Google"
+"عاجل: كي يقولك السيد ان شاء الله = 50% يجي 50% ما يجيش"
+"دراسة: احسن منبه في العالم هو امك تقولك نوض"
+"خبر: بطارية التيليفون 1% تعيش اكثر من 50% الى 100%"
+"عاجل: الميمز هي اللغة الرسمية الثانية في الجزائر"
+"دراسة: كل جزائري عندو خال في فرنسا حتى و لو ما عندوش"
+"خبر: واحد بغى يصور القمر، الصورة رجعت نقطة بيضاء"
+"عاجل: كي تسمع الزغاريت = يا عرس يا نجح واحد في الباك"
+"دراسة: كلمة نبعثلك في واتساب = الصورة ما توصلش جامي"
+"خبر: اكثر حاجة تضيع في الدار هي التيليكوموند"
+"عاجل: كي يقولولك اقعد تتعشى = راهم يطيبو ضرك"
+"دراسة: الويكاند في الجزائر يبدا الخميس العشية"
+"خبر: واحد شرى سمارتيفي باه يتفرج يوتيوب في التليفون"
+"عاجل: كلمة درك نجيك = راني نتفرج في ماتش"
+"دراسة: 90% من الشعب يعرف يصلح كلش ببريكة و سكوتش"
+"خبر: انا و الانترنت نتاعي قصة حب من طرف واحد"
+"عاجل: كي يخلاص الصولد تولي تحسب حتى الدقيقة"
+"دراسة: السخانة تاع اوت تخليك تحب الشتاء"
+"خبر: واحد قال لصاحبو راك تسالني قهوة، عندو 3 سنين يستنى فيها"
+"عاجل: فلاش تاع التيليفون هو الليزر تاع الزوالي"
+"دراسة: كي تكون جيعان كل الماكلة بنينة"
+"خبر: التحديثات تاع التيليفون تجي كي تكون في الزيرو كونيكسيون"
+"عاجل: كي تسمع قلوبالوف = راك في 2009"
+"دراسة: احسن دكتور هو Google و احسن دواء هو الرقدة"
+"خبر: واحد نسى التيليفون في الدار، حس روحو عريان في الشارع"
+"عاجل: الكسكسي يوم الجمعة دستور لا يناقش"
+"دراسة: كلمة دقيقة برك عند الميكانيسيان = نهار كامل"
+"خبر: اكثر حاجة تصبرك في الحافلة هي الموسيقى"
+"عاجل: كي يقولك الطبيب ما تقلقش = المشكل كبير"
+"دراسة: الليل يولي قصير كي تكون تتفرج فيلم مليح"
+"خبر: واحد بغى يدير ريجيم، بدا من غدوا عندو 5 سنين"
+"عاجل: الصيف في الجزائر = 50 درجة في الظل"
+"دراسة: كي تطيح الانترنت تحس روحك في جزيرة"
+"خبر: اكثر حاجة تستعملها in التيليفون هي الالة الحاسبة تاع الكريدي"
+"عاجل: كي يقولك الاستاذ سؤال ساهل = راح فيها"
+"دراسة: المطر كي يصب في الصيف = المعجزة الثامنة"
+"خبر: واحد ربح في طومبولا، الجائزة كانت طومبولا اخرى"
+"عاجل: السكات في القسم = الاستاذ يكتب في الاختبار"
+"دراسة: كي تشري صباط جديد لازم تشتي عليه"
+"خبر: الزهر ما عندوش صاحب"
+"عاجل: كي يخلاص الغاز على 12 تاع الليل = الكارثة"
+"دراسة: النعاس في الحصة الاخيرة = واجب وطني"
+"خبر: واحد قال ندير ستوري و نرقد، فاق الصباح"
+"عاجل: كي يضربك الضو = تولي تحب الظلام"
+"دراسة: الفطور تاع رمضان = جائزة نوبل"
+"خبر: كي تكون صايم الدقيقة تولي ساعة"
+"عاجل: المكيف في الصيف = الاكسجين"
+"دراسة: كي تشري حوايج جدد = ما تصبش الشتاء"
+"خبر: واحد بغى يتصور مع القمر، القمر دار روحو ما شافوش"
+"عاجل: كي يخلاص الفليكسي = تولي فيلسوف"
+"دراسة: الضحك بلا سبب = قلة ادب بكري، ضرك نورمال"
+"خبر: انا و الباك قصة عشق عمرها 3 سنين"
+"عاجل: واحد شرى باكي شيبس، لقاه 90% هواء و 10% شيبس"
+"دراسة: الجزائري يقدر يرقد في اي بلاصة الا في سروالو"
+)
+
+MOTIVATION=(
+"ما تستناش الوقت المناسب، دير لايك ضرك"
+"الـ 1K الاولى صعيبة، من بعد تولي ساهلة معاكم"
+"كل اشتراك = خطوة لقدام، كل لايك = دفعة للسماء"
+"قالو النجاح ما يجيش وحدو، يجي مع جماعة كيفكم"
+"اضرب اشتراك وخلي الباقي علينا حنا والزهر"
+"اليوم متابع، غدوا انت المول"
+"من الصفر بدينا، للقمة رايحين بيكم"
+"اضغط الجرس، باه ما تقولش ما علاباليش"
+"انت السبة اللي مخلية البث هذا شاعل"
+"احلم كبير، واشترك اكبر"
+"ما تقولش مستحيل، قول ما جربتش"
+"كل دقيقة معانا = دعم ما يتقدرش بثمن"
+"الطريق لـ 5K يبدا بكليك منك"
+"كون انت التغيير اللي حاب تشوفو في اليوتيوب"
+"اللي يضحك معانا اليوم، ينجح معانا غدوا"
+"الاستمرارية هي السر، وانتوما سرنا"
+"ما تحقرش روحك، كليك تاعك يصنع الفرق"
+"اذا وصلت هنا، معناها راك من العائلة"
+"النجاح مع الجماعة ليه بنة اخرى"
+"اشترك و ردها عليا اذا ما نجحناش مع بعض"
+"كل فيديو تشوفو هو خطوة في الحلم تاعنا"
+"انت مش مجرد رقم, انت خويا في القناة"
+"اللي يدعم اليوم، يتذكر غدوا كي نطلعو"
+"ما تخليهاش في قلبك، خرجها بلايك"
+"النية + الخدمة + دعمتكم = المستحيل يولي ساهل"
+"كونك هنا هو اكبر حافز ليا"
+"القنوات الكبار بداو بصفر كيفنا"
+"اضرب طلة على الفيديوهات القدم و شوف التطور"
+"كل تعليق منك نقراه و يفرحني"
+"ما تطلعش وحدك، طلع القناة معاك"
+"الـ 5000 قريبة بيكم"
+"خلي اسمك محفور معانا من الاول"
+"الدعم الحقيقي يبان في البدايات"
+"كون جزء من القصة قبل ما تولي تاريخ"
+"ما تستصغرش اشتراكك، هو كل شيء عندي"
+"اللي يجي بكري يشبع صح"
+"حلمي بسيط: نوصل صوتي بيكم"
+"انت البنزين تاع هاذ المحرك"
+"من غيركم البث يطفى"
+"كلمة شكر قليلة في حقكم"
+"نبنيوها حبة حبة مع بعض"
+"اللي ما يبداش ضرك، وقتاش يبدا"
+"خليك ايجابي و اشترك"
+"الطاقة اللي تمدوهالي ما تتشريش"
+"انا ندير المحتوى، و انت دير الباقي بكليك"
+"تخيل بعد عام نقولو كنا مع بعض من 100 مشترك"
+"كل شيء يبدا بخطوة، و خطوتك هي الاشتراك"
+"ما تخليش الخوارزميات تغلبنا، اغلبها باشتراكك"
+"انت الملخص تاع القناة هاذي"
+"نضحكو اليوم و ننجحو غدوا"
+"الدعم مش غير فلوس، الدعم كليك"
+"كون السبب في فرحة واحد اليوم"
+"ما تبخلش روحك الاجر، اشترك"
+"اليد الوحدة ما تصفقش، صفق معايا"
+"القناة تكبر بيكم ماشي بيا وحدي"
+"انت النجم، انا غير نصور"
+"كي تكبر القناة، نتفكرو اللي كانو معانا من الاول"
+"الشجرة الكبيرة كانت زريعة صغيرة"
+"دير الخير و اشترك، تلقاه غدوا"
+"كل لايك يزيد فيا يوم"
+"ما تحشمش، اضرب ابوني و اجري"
+"اللي يحب الخير يشجعو"
+"كونك مشاهد وفي خير من 100 مشاهد ساكت"
+"تعليقك يفرحني اكثر من اللايك"
+"الجرس هو اللي يخليك ديما معانا"
+"ما تراطيش الرحلة من اولها"
+"الحلم راه يتحقق بيكم شوية شوية"
+"انت الاستثمار الحقيقي تاعي"
+"كل ما نشوف رقم يطلع، قلبي يطلع معاه"
+"بارطاجي القناة مع صاحبك، يكبر الاجر"
+"الدعم النفسي قبل كل شيء"
+"كي تشوف الفيديو عاود، يوصل لغيرك"
+"خلونا نوصلو للعالمية مع بعض"
+"ما تخلينيش نهدر وحدي، اهدر بكومنت"
+"اللي يزرع اليوم يحصد غدوا"
+"انا نضمنلك الضحك، و انت اضمنلي الدعم"
+"الصداقة تبدا باشتراك"
+"كونك اسطورة، و دير ابوني"
+"الفرق بينا و بين الكبار هو انتم"
+"ما تخافش، اضرب و ما تندمش"
+"القناة هاذي بيتكم الثاني"
+"ادخل للتاريخ من الباب الواسع"
+"كل شيء ممكن اذا امنا بيه مع بعض"
+"انت البطل في قصة نجاحي"
+"ما تخلينيش نحلم وحدي"
+"ليوم خفيف، غدوا ثقيل بالنجاح"
+"الدعم تاعك يوصلني للقمر"
+"كون معانا في الحلوة و المرة"
+"البداية ديما صعيبة، بصح معاكم تسهل"
+"انا بيكم و ليكم"
+"ما تنسانيش كي نطلع"
+"اضرب النح و خلينا نطيرو"
+"كل ثانية من وقتك معانا غالية"
+"انت الكنز اللي لقيناه في يوتيوب"
+"ما تحقر حتى دعم، كلش يتحسب"
+"كونك السبب و خلي الباقي علينا"
+"القمة تنادي و حنا نروحو ليها مع بعض"
+"الحلم راه بين يدينا"
+"اضغط و ريح ضميرك"
+"ما ديرش كي الناس اللي تتفرج و تهرب"
+"كونك مميز، كونك مشترك"
+"اللي يجي من القليل يولي كثير"
+"رانا نبنيو في امبراطورية، و انت الملك"
+"اضرب ابوني و خلي الباقي على ربي"
+)
+
+# --- Helper functions ---
+fetch_stats() {
+  # Query YouTube API for channel statistics; fall back to zeros on error
+  STATS_JSON=$(curl -fsS --fail "https://www.googleapis.com/youtube/v3/channels?part=statistics&id=${YOUTUBE_CHANNEL_ID}&key=${YOUTUBE_API_KEY}" || echo "{}")
+  SUBS=$(echo "$STATS_JSON" | jq -r '.items[0].statistics.subscriberCount // "0"')
+  VIEWS=$(echo "$STATS_JSON" | jq -r '.items[0].statistics.viewCount // "0"')
+  [[ "$SUBS" =~ ^[0-9]+$ ]] || SUBS=0
+  [[ "$VIEWS" =~ ^[0-9]+$ ]] || VIEWS=0
+  LEFT=$((GOAL - SUBS))
+  [ $LEFT -lt 0 ] && LEFT=0
+  if [ "$GOAL" -eq 0 ]; then
+    PERCENT=0
+  else
+    PERCENT=$(( SUBS * 100 / GOAL ))
+    [ $PERCENT -gt 100 ] && PERCENT=100
+  fi
+}
+
+write_overlays() {
+  printf '%s\n' "المشتركين" > "$TMP_DIR/subs_label.txt"
+  printf '%s\n' "$SUBS" > "$TMP_DIR/subs_value.txt"
+  printf '%s\n' "الهدف $GOAL" > "$TMP_DIR/subs_goal.txt"
+  printf '%s\n' "${PERCENT}%" > "$TMP_DIR/subs_percent.txt"
+  printf '%s\n' "باقي $LEFT للهدف" > "$TMP_DIR/subs_left.txt"
+
+  # Random news and motivation lines
+  CURRENT_NEWS="${NEWS[$RANDOM % ${#NEWS[@]}]}"
+  CURRENT_MOTIV="${MOTIVATION[$RANDOM % ${#MOTIVATION[@]}]}"
+  printf '%s\n' "$CURRENT_NEWS" > "$TMP_DIR/news.txt"
+  printf '%s\n' "$CURRENT_MOTIV" > "$TMP_DIR/motiv.txt"
+}
+
+# Validate required env vars
+for v in YOUTUBE_STREAM_KEY YOUTUBE_API_KEY YOUTUBE_CHANNEL_ID; do
+  if [ -z "${!v:-}" ]; then
+    echo "Missing required environment variable: $v"
+    exit 1
+  fi
+done
+
+# Initial fetch and write
+fetch_stats
+write_overlays
+
+# Start periodic updater in background to refresh overlays and stats
+(
+  last_stats=0
+  while true; do
+    now_ts=$(date +%s)
+    elapsed=$(( now_ts - last_stats ))
+    # Refresh stats every 1 hour (3600s)
+    if [ $elapsed -ge 3600 ]; then
+      fetch_stats
+      last_stats=$now_ts
+    fi
+    # Refresh news/motiv every 10s
+    write_overlays
+    sleep 10
+  done
+) &
+UPD_PID=$!
+
+cleanup() {
+  echo "Stopping updater (pid=$UPD_PID)"
+  kill "$UPD_PID" 2>/dev/null || true
+}
+trap cleanup EXIT
+
+# Build ffmpeg filter_complex using textfile=...:reload=1 for dynamic overlays
+# Note: fontfile path must be a valid absolute path on runner; font was installed to $HOME/.fonts in workflow
+FILTER_COMPLEX="[1]scale=100:100[logo];[0][logo]overlay=W-w-50:50[v0]; \
+[v0]drawbox=x=0:y=0:w=1920:h=180:color=0x4a00e0@0.9:t=fill, \
+drawtext=fontfile='${FONTFILE}':text='LIVE':fontcolor=0x00ff88:fontsize=48:x=80:y=65, \
+drawtext=fontfile='${FONTFILE}':text='بث تاكي الرسمي 24/7':fontcolor=white:fontsize=55:x=300:y=60, \
+drawbox=x=60:y=220:w=900:h=800:color=0x1a1a2e@0.85:t=fill, \
+drawbox=x=60:y=220:w=900:h=80:color=0x00f5ff@1:t=fill, \
+drawtext=fontfile='${FONTFILE}':textfile='${TMP_DIR}/subs_label.txt':reload=1:fontcolor=0x0a0a0a:fontsize=45:x=100:y=235, \
+drawtext=fontfile='${FONTFILE}':textfile='${TMP_DIR}/subs_value.txt':reload=1:fontcolor=0xff0080:fontsize=90:x=100:y=480, \
+drawtext=fontfile='${FONTFILE}':textfile='${TMP_DIR}/subs_goal.txt':reload=1:fontcolor=white:fontsize=35:x=100:y=620, \
+drawbox=x=100:y=680:w=800:h=40:color=0x333333@1:t=fill, \
+drawbox=x=100:y=680:w=800*${PERCENT}/100:h=40:color=0x00ff88@1:t=fill, \
+drawtext=fontfile='${FONTFILE}':textfile='${TMP_DIR}/subs_percent.txt':reload=1:fontcolor=white:fontsize=30:x=480:y=685, \
+drawtext=fontfile='${FONTFILE}':textfile='${TMP_DIR}/subs_left.txt':reload=1:fontcolor=0xffd700:fontsize=35:x=100:y=750, \
+drawbox=x=1040:y=200:w=800:h=650:color=0x1a1a2e@0.85:t=fill, \
+drawbox=x=1040:y=200:w=800:h=80:color=0xff0080@1:t=fill, \
+drawtext=fontfile='${FONTFILE}':text='اخبار DZ المضحكة':fontcolor=white:fontsize=45:x=1100:y=215, \
+drawtext=fontfile='${FONTFILE}':textfile='${TMP_DIR}/news.txt':reload=1:fontcolor=white:fontsize=26:x=1060:y=320, \
+drawbox=x=1080:y=500:w=720:h=5:color=0x4a00e0@1:t=fill, \
+drawtext=fontfile='${FONTFILE}':text='جرعة تحفيز':fontcolor=0x00ff88:fontsize=35:x=1080:y=540, \
+drawtext=fontfile='${FONTFILE}':textfile='${TMP_DIR}/motiv.txt':reload=1:fontcolor=white:fontsize=26:x=1060:y=600, \
+drawbox=x=0:y=1020:w=1920:h=60:color=0x4a00e0@0.9:t=fill, \
+drawtext=fontfile='${FONTFILE}':text='لغز تاكي ما هو الشيء الذي كلما زاد نقص؟':fontcolor=white:fontsize=32:x=100:y=1035[v]"
+
+# Start ffmpeg with a loop that will restart on failure until STREAM_DURATION elapsed
+END_TS=$(( START_TS + STREAM_DURATION ))
+while true; do
+  NOW=$SECONDS
+  if [ $NOW -ge $END_TS ]; then
+    echo "Reached configured stream duration ($STREAM_DURATION s). Exiting main loop."
+    break
+  fi
+
+  if ! ping -c 1 8.8.8.8 >/dev/null 2>&1; then
+    echo "No internet connectivity, sleeping 10s"
+    sleep 10
+    continue
+  fi
+
+  echo "Starting ffmpeg at $(date) (subs=$SUBS views=$VIEWS percent=$PERCENT)"
+  ffmpeg -re -f lavfi -i "color=c=0x0a0a0a:s=1920x1080:r=15" \
+    -i "$LOGO" \
+    -f lavfi -i "anullsrc=cl=stereo:r=44100" \
+    -filter_complex "$FILTER_COMPLEX" \
+    -map "[v]" -map 2:a \
+    -c:v libx264 -preset ultrafast -tune stillimage -pix_fmt yuv420p -r 15 -g 30 -b:v 1500k \
+    -c:a aac -b:a 128k -ar 44100 \
+    -f flv "rtmp://a.rtmp.youtube.com/live2/${YOUTUBE_STREAM_KEY}" || true
+
+  EXIT_CODE=$?
+  echo "ffmpeg exited with code ${EXIT_CODE} at $(date). Backing off 15s before restart."
+  sleep 15
+done
+
+# Cleanup and exit
+cleanup
