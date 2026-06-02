@@ -47,15 +47,18 @@ jobs:
         run: |
           set -euo pipefail
 
-          # Fail fast if required secrets are missing
+          # Fail fast if required secrets are missing (do not print secret values)
           missing=false
           for v in YOUTUBE_STREAM_KEY YOUTUBE_API_KEY YOUTUBE_CHANNEL_ID; do
             if [ -z "${!v:-}" ]; then
               echo "Missing required secret: $v"
               missing=true
+            else
+              echo "$v is set (non-empty)"
             fi
           done
           if [ "$missing" = true ]; then
+            echo "One or more required secrets are missing. Add them at Settings → Secrets and variables → Actions, or run this workflow from the main repository where secrets are available."
             exit 1
           fi
 
